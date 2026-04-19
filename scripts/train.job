@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name=poc
+#SBATCH --partition=c23g
+#SBATCH --time=20:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=16G
+#SBATCH --gres=gpu:1
+#SBATCH --output=batchSubmissions/poc_%j.out
+#SBATCH --error=batchSubmissions/poc_%j.err
+
+mkdir -p batchSubmissions
+
+bash scripts/train.sh
