@@ -51,6 +51,13 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Data cache
+cache/
+*.pkl
+
+# Custom Folders
+lightning_logs/
+
 # Translations
 *.mo
 *.pot
