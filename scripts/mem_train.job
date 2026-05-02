@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=mem_chunk
+#SBATCH --partition=c23g
+#SBATCH --time=48:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=16G
+#SBATCH --gres=gpu:1
+#SBATCH --array=0-19
+#SBATCH --output=batchSubmissions/mem_%A_%a.out
+#SBATCH --error=batchSubmissions/mem_%A_%a.err
+
+mkdir -p batchSubmissions
+
+# Each array task is a chunk_id; the script runs 200 sequential trials
+bash scripts/mem_train.sh $SLURM_ARRAY_TASK_ID

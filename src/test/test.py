@@ -239,8 +239,8 @@ class ARGOSCallback(Callback):
             for batch in val_loader:
                 labels = batch["jet_type_labels"].to(device)
                 
-                # Check if model is dijet or single-jet
-                if isinstance(pl_module, BackboneDijetClassificationLightning):
+                # Check if model expects two jets (dijet models)
+                if isinstance(pl_module, (BackboneDijetClassificationLightning, BackboneAachenClassificationLightning)):
                     X1 = batch["part_features"].to(device)
                     X2 = batch["part_features_jet2"].to(device)
                     mask1 = batch["part_mask"].to(device)

@@ -57,6 +57,9 @@ from gabbro.data.data_utils import create_lhco_h5_dataloaders
 from gabbro.models.backbone import BackboneDijetClassificationLightning, BackboneAachenClassificationLightning
 from gabbro.data.loading import load_lhco_jets_from_h5, load_multiple_h5_files
 
+# Local imports
+from src.data.cache_data import create_cached_lhco_h5_dataloaders
+
 load_dotenv()  # Load environment variables from .env file (for W&B API key, etc.)
 
 class ExperimentLogger:
@@ -236,8 +239,8 @@ class ARGOSCallback(Callback):
             for batch in val_loader:
                 labels = batch["jet_type_labels"].to(device)
                 
-                # Check if model is dijet or single-jet
-                if isinstance(pl_module, BackboneDijetClassificationLightning):
+                # Check if model expects two jets (dijet models)
+                if isinstance(pl_module, (BackboneDijetClassificationLightning, BackboneAachenClassificationLightning)):
                     X1 = batch["part_features"].to(device)
                     X2 = batch["part_features_jet2"].to(device)
                     mask1 = batch["part_mask"].to(device)
@@ -276,6 +279,7 @@ class ARGOSCallback(Callback):
 def main():
     parser = argparse.ArgumentParser(description="OmniJet-alpha Anomaly Detection Training Script")
     parser.add_argument("--dataset_path", default=str(os.getenv("DATASET_PATH")), type=str, help="Path to the LHCO dataset")
+    parser.add_argument("--output_path", default=str(os.getenv("OUTPUT_PATH")), type=str, help="Path to save the models")
     parser.add_argument("--gpu_id", type=int, default=int(os.getenv("GPU_ID")), help="GPU ID to use for computation")
     parser.add_argument("--seed", type=int, default=int(os.getenv("SEED")), help="Random seed for reproducibility")
     parser.add_argument("--batch_size", type=int, default=int(os.getenv("BATCH_SIZE")), help="Batch size for training")
@@ -328,23 +332,23 @@ def main():
     
     h5_files_all = [signal_path, background_path]
 
-    # # Log data configuration
-    # data_config = {
-    #     "dataset_path": args.dataset_path,
-    #     "signal_file": signal_path,
-    #     "background_file": background_path,
-    #     "n_jets_train": args.n_jets_train,
-    #     "batch_size": args.batch_size,
-    #     "max_sequence_len": 128,
-    #     "mom4_format": "epxpypz",
-    #     "train_val_split": args.train_val_split,
-    #     "features": list(input_features_dict.keys()),
-    #     "feature_preprocessing": input_features_dict,
-    #     "shuffle_train": True,
-    #     "jet_name": jet_name,
-    # }
+    # Log data configuration
+    data_config = {
+        "dataset_path": args.dataset_path,
+        "signal_file": signal_path,
+        "background_file": background_path,
+        "n_jets_train": args.n_jets_train,
+        "batch_size": args.batch_size,
+        "max_sequence_len": 128,
+        "mom4_format": "epxpypz",
+        "train_val_split": args.train_val_split,
+        "features": list(input_features_dict.keys()),
+        "feature_preprocessing": input_features_dict,
+        "shuffle_train": True,
+        "jet_name": jet_name,
+    }
     
-    train_loader, val_loader = create_lhco_h5_dataloaders(
+    train_loader, val_loader = create_cached_lhco_h5_dataloaders(
         h5_files_train=h5_files_all,
         h5_files_val=None,
         feature_dict=input_features_dict,
@@ -356,6 +360,8 @@ def main():
         train_val_split=args.train_val_split,
         shuffle_train=True,
         num_workers=1,
+        cache_dir="cache",
+        use_cache=True,
     )
 
     # ============================================================
@@ -418,59 +424,54 @@ def main():
     print(f"Model created with {num_params:,} parameters")
     
     # Log model configuration
-    # model_config = {
-    #     "architecture": "BackboneAachenClassificationLightning",
-    #     "merge_strategy": merge_strategy,
-    #     "class_head_type": "aachen_attention",
-    #     "use_continuous_input": True,
-    #     "num_parameters": num_params,
-    #     "embedding_dim": args.embedding_dim,
-    #     "n_transformer_blocks": 2,
-    #     "num_attention_heads": 8,
-    #     "max_sequence_len": 128,
-    #     "n_output_classes": 2,
-    #     "freeze_backbone": args.freeze_backbone,
-    #     "load_pretrained_checkpoint": args.load_pretrained and args.pretrained_ckpt,
-    #     "pretrained_checkpoint_path": args.pretrained_ckpt if (args.load_pretrained and args.pretrained_ckpt) else None,
-    #     "model_kwargs": {k: v for k, v in model_kwargs.items() if k != "particle_features_dict"},
-    # }
+    model_config = {
+        "architecture": "BackboneAachenClassificationLightning",
+        "merge_strategy": merge_strategy,
+        "class_head_type": "aachen_attention",
+        "use_continuous_input": True,
+        "num_parameters": num_params,
+        "embedding_dim": args.embedding_dim,
+        "n_transformer_blocks": 8,
+        "num_attention_heads": 8,
+        "max_sequence_len": 128,
+        "n_output_classes": 2,
+        "model_kwargs": {k: v for k, v in model_kwargs.items() if k != "particle_features_dict" and k != "class_weights"},
+    }
     
     # Log training configuration
-    # training_config = {
-    #     "optimizer": "AdamW",
-    #     "optimizer_params": {
-    #         "lr": args.learning_rate,
-    #         "weight_decay": 1e-2,
-    #     },
-    #     "scheduler": "ConstantLR",
-    #     "max_steps": args.max_steps,
-    #     "gradient_clip_val": 1.0,
-    #     "precision": "32",
-    #     "early_stopping_patience": 15,
-    #     "early_stopping_monitor": "val_argos",
-    #     "checkpoint_monitor": "val_argos",
-    #     "checkpoint_mode": "max",
-    #     "use_class_weights": args.use_class_weights,
-    #     "class_weights": model_kwargs.get("class_weights", None),
-    # }
+    training_config = {
+        "optimizer": "AdamW",
+        "optimizer_params": {
+            "lr": args.learning_rate,
+            "weight_decay": 1e-2,
+        },
+        "scheduler": "ConstantLR",
+        "max_epochs": args.max_epochs,
+        "gradient_clip_val": 1.0,
+        "precision": "32",
+        "checkpoint_monitor": "val_argos",
+        "checkpoint_mode": "max",
+        "use_class_weights": args.use_class_weights,
+        "class_weights": model_kwargs.get("class_weights", None),
+    }
     
     # Log system configuration
-    # system_config = {
-    #     "device": str(device),
-    #     "gpu_id": args.gpu_id,
-    #     "random_seed": args.seed,
-    #     "timestamp_start": datetime.now().isoformat(),
-    # }
+    system_config = {
+        "device": str(device),
+        "gpu_id": args.gpu_id,
+        "random_seed": args.seed,
+        "timestamp_start": datetime.now().isoformat(),
+    }
     
     # Combine all configs and log
-    # full_config = {
-    #     "data": data_config,
-    #     "model": model_config,
-    #     "training": training_config,
-    #     "system": system_config,
-    # }
-    # exp_logger.log_config(full_config)
-    # print(f"Configuration saved to: {exp_logger.run_dir / 'config.json'}")
+    full_config = {
+        "data": data_config,
+        "model": model_config,
+        "training": training_config,
+        "system": system_config,
+    }
+    exp_logger.log_config(full_config)
+    print(f"Configuration saved to: {exp_logger.run_dir / 'config.json'}")
 
     # Or using ARGOS metric
     checkpoint_callback = ModelCheckpoint(
@@ -513,6 +514,10 @@ def main():
         
         print("\n" + "=" * 80)
         print("Training complete!")
+        exp_logger.log_final_results(trainer, checkpoint_callback)
+        print(f"Results saved to: {exp_logger.run_dir}")
+        print(f"Best checkpoint: {checkpoint_callback.best_model_path}")
+        print("=" * 80 + "\n")
         
     except KeyboardInterrupt:
         print("\n" + "=" * 80)
@@ -522,12 +527,24 @@ def main():
         
     except Exception as e:
         # Log error if training fails
+        import traceback
         error_info = {
             "training_completed": False,
             "error": str(e),
             "error_type": type(e).__name__,
             "timestamp_error": datetime.now().isoformat(),
+            "traceback": traceback.format_exc(),
         }
+        exp_logger.log_results(error_info)
+        print("\n" + "=" * 80)
+        print(f"ERROR: Training failed!")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print(f"\nFull traceback:")
+        print(traceback.format_exc())
+        print(f"Error details saved to: {exp_logger.run_dir}")
+        print("=" * 80 + "\n")
+        raise  # Re-raise to ensure the error is not silently ignored
 
 if __name__ == "__main__":
     main()

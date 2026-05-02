@@ -1,0 +1,38 @@
+# HTCondor submission file for memorization shadow-model array.
+#
+# 20 jobs, each running 200 sequential trials on one GPU (~6-7 h per job).
+# Total: 4000 trials, well within the 48h wall-time limit.
+#
+# Usage:
+#   mkdir -p batchSubmissions
+#   condor_submit scripts/mem_train.sub
+#
+# To add --load_pretrained, append it to the 'arguments' line:
+#   arguments = $(Process) --load_pretrained --pretrained_ckpt /path/to/ckpt.ckpt
+#
+# Resume: resubmit this file after a failure — completed trials are skipped
+# automatically because their output .npz files already exist.
+
+universe            = vanilla
+executable          = scripts/mem_train.sh
+
+# $(Process) = chunk_id, ranging 0-19
+arguments           = $(Process)
+
+# Redirect stdout/stderr per chunk
+output              = batchSubmissions/mem_chunk_$(Process).out
+error               = batchSubmissions/mem_chunk_$(Process).err
+log                 = batchSubmissions/mem_condor.log
+
+# Resource requests
+request_cpus        = 2
+request_memory      = 16G
+request_gpus        = 1
+
+# Retry failed jobs up to 2 times (transient failures)
+max_retries         = 2
+
+initialdir          = /home/home3/institut_thp/soshaw/GenVsMem-on-HEP-Data
+
+# 20 chunks × 200 trials = 4000 trials total
+queue 20

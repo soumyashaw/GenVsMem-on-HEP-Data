@@ -1,0 +1,87 @@
+{
+    "data": {
+        "dataset_path": "/.automount/net_rw/net__data_ttk/soshaw",
+        "signal_file": "/.automount/net_rw/net__data_ttk/soshaw/sn_25k_SR_train.h5",
+        "background_file": "/.automount/net_rw/net__data_ttk/soshaw/bg_200k_SR_train.h5",
+        "n_jets_train": [
+            25000,
+            25000
+        ],
+        "batch_size": 64,
+        "max_sequence_len": 128,
+        "mom4_format": "epxpypz",
+        "train_val_split": 0.7,
+        "features": [
+            "part_pt",
+            "part_etarel",
+            "part_phirel"
+        ],
+        "feature_preprocessing": {
+            "part_pt": {
+                "multiply_by": 1,
+                "subtract_by": 1.8,
+                "func": "signed_log",
+                "inv_func": "signed_exp"
+            },
+            "part_etarel": {
+                "multiply_by": 3
+            },
+            "part_phirel": {
+                "multiply_by": 3
+            }
+        },
+        "shuffle_train": true,
+        "jet_name": "both"
+    },
+    "model": {
+        "architecture": "BackboneAachenClassificationLightning",
+        "merge_strategy": "concat",
+        "class_head_type": "aachen_attention",
+        "use_continuous_input": true,
+        "num_parameters": 1887873,
+        "embedding_dim": 128,
+        "n_transformer_blocks": 8,
+        "num_attention_heads": 8,
+        "max_sequence_len": 128,
+        "n_output_classes": 2,
+        "model_kwargs": {
+            "embedding_dim": 128,
+            "max_sequence_len": 256,
+            "n_out_nodes": 2,
+            "embed_cfg": "{'type': 'continuous_project_add', 'intermediate_dim': None}",
+            "transformer_cfg": "{'dim': 128, 'n_blocks': 8, 'norm_after_blocks': True, 'residual_cfg': {'gate_type': 'local', 'init_value': 1}, 'attn_cfg': {'num_heads': 8, 'dropout_rate': 0.1, 'norm_before': True, 'norm_after': False}, 'mlp_cfg': {'dropout_rate': 0.0, 'norm_before': True, 'expansion_factor': 4, 'activation': 'GELU'}}",
+            "class_head_hidden_dim": 128,
+            "class_head_num_heads": 2,
+            "class_head_num_CA_blocks": 2,
+            "class_head_num_SA_blocks": 0,
+            "class_head_dropout_rate": 0.1,
+            "jet_features_input_dim": 0,
+            "apply_causal_mask": false,
+            "zero_padded_start_particle": false
+        }
+    },
+    "training": {
+        "optimizer": "AdamW",
+        "optimizer_params": {
+            "lr": 0.0001,
+            "weight_decay": 0.01
+        },
+        "scheduler": "ConstantLR",
+        "max_epochs": 10,
+        "gradient_clip_val": 1.0,
+        "precision": "32",
+        "checkpoint_monitor": "val_argos",
+        "checkpoint_mode": "max",
+        "use_class_weights": true,
+        "class_weights": [
+            1.0,
+            1.0
+        ]
+    },
+    "system": {
+        "device": "cuda:0",
+        "gpu_id": 0,
+        "random_seed": 42,
+        "timestamp_start": "2026-04-20T12:30:22.784861"
+    }
+}
